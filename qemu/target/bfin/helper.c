@@ -12,7 +12,6 @@
 #include "cpu.h"
 #include "exec/exec-all.h"
 #include "qemu/host-utils.h"
-#include "qemu/qemu-print.h"
 
 #if defined(CONFIG_USER_ONLY)
 
@@ -96,49 +95,8 @@ bool bfin_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
         return false;
     } else {
         /* now we have a real cpu fault */
-        cpu_restore_state(cs, retaddr);
+        cpu_restore_state(cs, retaddr, true);
         cpu_loop_exit(cs);
     }
 #endif
-}
-
-/* Sort alphabetically by type name, except for "any". */
-static gint cpu_list_compare(gconstpointer a, gconstpointer b)
-{
-    ObjectClass *class_a = (ObjectClass *)a;
-    ObjectClass *class_b = (ObjectClass *)b;
-    const char *name_a, *name_b;
-
-    name_a = object_class_get_name(class_a);
-    name_b = object_class_get_name(class_b);
-    if (strcmp(name_a, BLACKFIN_CPU_TYPE_NAME("any")) == 0) {
-        return 1;
-    } else if (strcmp(name_b, BLACKFIN_CPU_TYPE_NAME("any")) == 0) {
-        return -1;
-    } else {
-        return strcmp(name_a, name_b);
-    }
-}
-
-static void cpu_list_entry(gpointer data, gpointer user_data)
-{
-    ObjectClass *oc = data;
-    const char *typename;
-    char *name;
-
-    typename = object_class_get_name(oc);
-    name = g_strndup(typename, strlen(typename) - strlen("-" TYPE_BLACKFIN_CPU));
-    qemu_printf("  %s\n", name);
-    g_free(name);
-}
-
-void cpu_bfin_list(void)
-{
-    GSList *list;
-
-    list = object_class_get_list(TYPE_BLACKFIN_CPU, false);
-    list = g_slist_sort(list, cpu_list_compare);
-    qemu_printf("Available CPUs:\n");
-    g_slist_foreach(list, cpu_list_entry, NULL);
-    g_slist_free(list);
 }

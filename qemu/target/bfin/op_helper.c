@@ -12,7 +12,56 @@
 #include "cpu.h"
 #include "exec/helper-proto.h"
 #include "exec/exec-all.h"
-#include "sysemu/runstate.h"
+
+/**
+ * clz16 - count leading zeros in a 16-bit value.
+ * @val: The value to search
+ *
+ * Returns 16 if the value is zero.  Note that the GCC builtin is
+ * undefined if the value is zero.
+ */
+ static inline int clz16(uint16_t val)
+ {
+ #if QEMU_GNUC_PREREQ(3, 4) && defined(__i386__)
+     return val ? __builtin_clzs(val) : 16;
+ #else
+     /* Binary search for the leading one bit.  */
+     int cnt = 0;
+ 
+     if (!(val & 0xFF00U)) {
+         cnt += 8;
+         val <<= 8;
+     }
+     if (!(val & 0xF000U)) {
+         cnt += 4;
+         val <<= 4;
+     }
+     if (!(val & 0xC000U)) {
+         cnt += 2;
+         val <<= 2;
+     }
+     if (!(val & 0x8000U)) {
+         cnt++;
+         val <<= 1;
+     }
+     if (!(val & 0x8000U)) {
+         cnt++;
+     }
+     return cnt;
+ #endif
+ }
+ 
+ /**
+  * clo16 - count leading ones in a 16-bit value.
+  * @val: The value to search
+  *
+  * Returns 16 if the value is -1.
+  */
+ static inline int clo16(uint16_t val)
+ {
+     return clz16(~val);
+ }
+ 
 
 void HELPER(raise_exception)(CPUArchState *env, uint32_t excp, uint32_t pc)
 {
@@ -22,7 +71,8 @@ void HELPER(raise_exception)(CPUArchState *env, uint32_t excp, uint32_t pc)
 #ifndef CONFIG_LINUX_USER
     /* TODO: This doesn't seem like the right place. */
     if (excp == EXCP_HLT) {
-        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+        //qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+        assert(0); 
     }
 #endif
 

@@ -94,6 +94,16 @@ typedef struct CPUArchState {
     uint32_t astat[32];
     /* ASTAT delayed helpers */
     uint32_t astat_op, astat_arg[3];
+
+    /* Fields up to this point are cleared by a CPU reset */
+#ifndef _MSC_VER
+    struct {} end_reset_fields;
+#else
+    int end_reset_fields;
+#endif
+
+    // Unicorn engine
+    struct uc_struct *uc;
 } CPUBfinState;
 #define spreg preg[6]
 #define fpreg preg[7]
@@ -102,12 +112,9 @@ typedef struct CPUArchState {
 
 #define TYPE_BLACKFIN_CPU "bfin-cpu"
 
-#define BFIN_CPU_CLASS(klass) \
-    OBJECT_CLASS_CHECK(BlackfinCPUClass, (klass), TYPE_BLACKFIN_CPU)
-#define BFIN_CPU(obj) \
-    OBJECT_CHECK(BlackfinCPU, (obj), TYPE_BLACKFIN_CPU)
-#define BFIN_CPU_GET_CLASS(obj) \
-    OBJECT_GET_CLASS(BlackfinCPUClass, (obj), TYPE_BLACKFIN_CPU)
+#define BFIN_CPU_CLASS(klass) ((BlackfinCPUClass *)klass)
+#define BFIN_CPU(obj) ((BlackfinCPU *)obj)
+#define BFIN_CPU_GET_CLASS(obj) (&((BlackfinCPU *)obj)->cc)
 
 /**
  * BlackfinCPUClass:
@@ -120,8 +127,7 @@ typedef struct BlackfinCPUClass {
     CPUClass parent_class;
     /*< public >*/
 
-    DeviceRealize parent_realize;
-    void (*parent_reset)(DeviceState *dev);
+    void (*parent_reset)(CPUState *cpu);
 
     const char *name;
 } BlackfinCPUClass;
@@ -137,12 +143,14 @@ typedef struct ArchCPU {
     CPUState parent_obj;
     /*< public >*/
 
-    CPUArchState env;
+    CPUBfinState env;
 
     CPUNegativeOffsetState neg;
+
+    struct BlackfinCPUClass cc;
 } BlackfinCPU;
 
-static inline BlackfinCPU *bfin_env_get_cpu(CPUArchState *env)
+static inline BlackfinCPU *bfin_env_get_cpu(CPUBfinState *env)
 {
     return container_of(env, BlackfinCPU, env);
 }
@@ -169,7 +177,7 @@ hwaddr bfin_cpu_get_phys_page_debug(CPUState *cpu, vaddr addr);
 int bfin_cpu_gdb_read_register(CPUState *cpu, GByteArray *buf, int reg);
 int bfin_cpu_gdb_write_register(CPUState *cpu, uint8_t *buf, int reg);
 
-static inline uint32_t bfin_astat_read(CPUArchState *env)
+static inline uint32_t bfin_astat_read(CPUBfinState *env)
 {
     unsigned int i, ret;
 
@@ -181,7 +189,7 @@ static inline uint32_t bfin_astat_read(CPUArchState *env)
     return ret;
 }
 
-static inline void bfin_astat_write(CPUArchState *env, uint32_t astat)
+static inline void bfin_astat_write(CPUBfinState *env, uint32_t astat)
 {
     unsigned int i;
     for (i = 0; i < 32; ++i) {
@@ -221,7 +229,7 @@ bool bfin_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                        MMUAccessType access_type, int mmu_idx, bool probe,
                        uintptr_t retaddr);
 int cpu_bfin_signal_handler(int host_signum, void *pinfo, void *puc);
-void bfin_translate_init(void);
+void bfin_translate_init(struct uc_struct *uc);
 
 extern const char * const greg_names[];
 extern const char *get_allreg_name(int grp, int reg);
@@ -232,7 +240,7 @@ extern const char *get_allreg_name(int grp, int reg);
 #define MMU_MODE0_SUFFIX _kernel
 #define MMU_MODE1_SUFFIX _user
 #define MMU_USER_IDX 1
-static inline int cpu_mmu_index(CPUArchState *env, bool ifetch)
+static inline int cpu_mmu_index(CPUBfinState *env, bool ifetch)
 {
     return !cec_is_supervisor_mode(env);
 }
@@ -241,14 +249,20 @@ int cpu_bfin_handle_mmu_fault(CPUState *cs, target_ulong address,
                               MMUAccessType access_type, int mmu_idx);
 #define cpu_handle_mmu_fault cpu_bfin_handle_mmu_fault
 
+typedef CPUBfinState CPUArchState;
+typedef BlackfinCPU ArchCPU;
+
+
 #include "exec/cpu-all.h"
 
-static inline void cpu_get_tb_cpu_state(CPUArchState *env, vaddr *pc,
-                                        uint64_t *cs_base, uint32_t *flags)
+static inline void cpu_get_tb_cpu_state(CPUBfinState *env, target_ulong *pc,
+                                        target_ulong *cs_base, uint32_t *flags)
 {
     *pc = env->pc;
     *cs_base = 0;
     *flags = env->astat[ASTAT_RND_MOD];
 }
+
+BlackfinCPU *cpu_bfin_init(struct uc_struct *uc);
 
 #endif

@@ -6,6 +6,8 @@
  *
  * Licensed under the Lesser GPL 2 or later.
  */
+DEF_HELPER_4(uc_tracecode, void, i32, i32, ptr, i64)
+DEF_HELPER_6(uc_traceopcode, void, ptr, i64, i64, i32, ptr, i64)
 
 DEF_HELPER_FLAGS_3(raise_exception, TCG_CALL_NO_WG, void, env, i32, i32)
 DEF_HELPER_FLAGS_5(memalign, TCG_CALL_NO_WG, void, env, i32, i32, i32, i32)

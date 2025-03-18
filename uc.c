@@ -20,6 +20,7 @@
 #include "qemu/target/m68k/unicorn.h"
 #include "qemu/target/i386/unicorn.h"
 #include "qemu/target/arm/unicorn.h"
+#include "qemu/target/bfin/unicorn.h"
 #include "qemu/target/mips/unicorn.h"
 #include "qemu/target/sparc/unicorn.h"
 #include "qemu/target/ppc/unicorn.h"
@@ -236,6 +237,10 @@ bool uc_arch_supported(uc_arch arch)
 #endif
 #ifdef UNICORN_HAS_TRICORE
     case UC_ARCH_TRICORE:
+        return true;
+#endif
+#ifdef UNICORN_HAS_BFIN
+    case UC_ARCH_BFIN:
         return true;
 #endif
     /* Invalid or disabled arch */
@@ -473,6 +478,15 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
                 return UC_ERR_MODE;
             }
             uc->init_arch = uc_init_tricore;
+            break;
+#endif
+#ifdef UNICORN_HAS_BFIN
+        case UC_ARCH_BFIN:
+            if ((mode & ~UC_MODE_TRICORE_MASK)) {
+                free(uc);
+                return UC_ERR_MODE;
+            }
+            uc->init_arch = uc_init_bfin;
             break;
 #endif
         }
@@ -2301,6 +2315,12 @@ static context_reg_rw_t find_context_reg_rw(uc_arch arch, uc_mode mode)
     case UC_ARCH_TRICORE:
         rw.read = reg_read_tricore;
         rw.write = reg_write_tricore;
+        break;
+#endif
+#ifdef UNICORN_HAS_BFIN
+    case UC_ARCH_BFIN:
+        rw.read = reg_read_bfin;
+        rw.write = reg_write_bfin;
         break;
 #endif
     }
