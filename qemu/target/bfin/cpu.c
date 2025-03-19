@@ -53,7 +53,6 @@ static void bfin_cpu_realizefn(struct uc_struct *uc, CPUState *dev)
     cpu_exec_realizefn(cs);
 
     cpu_reset(cs);
-    qemu_init_vcpu(cs);
 }
 
 static void bfin_cpu_class_init(struct uc_struct *uc, CPUClass *oc)

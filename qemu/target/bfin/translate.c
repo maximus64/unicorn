@@ -21,6 +21,7 @@
 typedef void (*hwloop_callback)(struct DisasContext *dc, int loop);
 
 typedef struct DisasContext {
+    DisasContextBase base;
     CPUArchState *env;
     struct TranslationBlock *tb;
     /* The current PC we're decoding (could be middle of parallel insn) */
@@ -1165,5 +1166,133 @@ static void gen_astat_store(DisasContext *dc, TCGv reg)
 
 static void interp_insn_bfin(DisasContext *dc);
 
+static inline void gen_save_pc(DisasContext *ctx, target_ulong pc)
+{
+    TCGContext *tcg_ctx = ctx->uc->tcg_ctx;
+
+    tcg_gen_movi_tl(tcg_ctx, tcg_ctx->cpu_PC, pc);
+}
+
+
+static void bfin_tr_init_disas_context(DisasContextBase *dcbase,
+    CPUState *cs)
+{
+    DisasContext *dc = container_of(dcbase, DisasContext, base);
+    CPUArchState *env = cs->env_ptr;
+
+    // unicorn setup
+    dc->uc = cs->uc;
+
+    dc->env = env;
+
+    dc->mem_idx = cpu_mmu_index(env, false);
+
+    dc->astat_op = ASTAT_OP_DYNAMIC;
+    dc->hwloop_callback = gen_hwloop_default;
+    dc->disalgnexcpt = 1;
+}
+
+static void bfin_tr_tb_start(DisasContextBase *db, CPUState *cpu)
+{
+}
+
+static void bfin_tr_pc_sync(DisasContextBase *db, CPUState *cpu)
+{
+    DisasContext *ctx = container_of(db, DisasContext, base);
+
+    gen_save_pc(ctx, ctx->base.pc_next);
+}
+
+static void bfin_tr_insn_start(DisasContextBase *dcbase, CPUState *cpu)
+{
+    DisasContext *ctx = container_of(dcbase, DisasContext, base);
+    TCGContext *tcg_ctx = ctx->uc->tcg_ctx;
+    tcg_gen_insn_start(tcg_ctx, ctx->base.pc_next);
+}
+
+static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
+{
+    DisasContext *dc = container_of(dcbase, DisasContext, base);
+    struct uc_struct *uc = dc->uc;
+    TCGContext *tcg_ctx = uc->tcg_ctx;
+    CPUArchState *env = cs->env_ptr;
+    unsigned int insn;
+
+    // Unicorn: end address tells us to stop emulation
+    if (uc_addr_is_exit(uc, dc->pc)) {
+        cec_exception(dc, EXCP_HLT);
+        return;
+    }
+
+    // Unicorn: trace this instruction on request
+    if (HOOK_EXISTS_BOUNDED(uc, UC_HOOK_CODE, dc->pc)) {
+        // Sync PC in advance
+        gen_save_pc(dc, dc->base.pc_next);
+
+        gen_uc_tracecode(tcg_ctx, dc->insn_len, UC_HOOK_CODE_IDX, dc->uc,
+                         dc->base.pc_next);
+        // the callback might want to stop emulation immediately
+        check_exit_request(tcg_ctx);
+    }
+
+    interp_insn_bfin(dc);
+    gen_hwloop_check(dc);
+    dc->base.pc_next += dc->insn_len;
+
+
+    if (dc->base.is_jmp == DISAS_NORETURN) {
+        return;
+    }
+    if (dc->pc != dc->base.pc_next) {
+        dc->base.is_jmp = DISAS_TOO_MANY;
+    }
+}
+
+static void bfin_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
+{
+    DisasContext *dc = container_of(dcbase, DisasContext, base);
+    TCGContext *tcg_ctx = dc->uc->tcg_ctx;
+
+    switch (dc->base.is_jmp) {
+        case DISAS_NEXT:
+            gen_gotoi_tb(dc, 1, dc->pc);
+            break;
+        default:
+        case DISAS_UPDATE:
+            /* indicate that the hash table must be used
+               to find the next TB */
+            tcg_gen_exit_tb(tcg_ctx, NULL, 0);
+            break;
+        case DISAS_CALL:
+        case DISAS_JUMP:
+        case DISAS_TB_JUMP:
+            /* nothing more to generate */
+            break;
+    }
+}
+
+static const TranslatorOps bfin_tr_ops = {
+    .init_disas_context = bfin_tr_init_disas_context,
+    .tb_start           = bfin_tr_tb_start,
+    .insn_start         = bfin_tr_insn_start,
+    .translate_insn     = bfin_tr_translate_insn,
+    .tb_stop            = bfin_tr_tb_stop,
+    .pc_sync            = bfin_tr_pc_sync
+};
+
+
+void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int max_insns)
+{
+    DisasContext ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    translator_loop(&bfin_tr_ops, &ctx.base, cs, tb, max_insns);
+}
+
+void
+restore_state_to_opc(CPUArchState *env, TranslationBlock *tb,
+                     target_ulong *data)
+{
+    env->pc = data[0];
+}
 
 #include "bfin-sim.c"

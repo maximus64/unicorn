@@ -482,7 +482,7 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
 #endif
 #ifdef UNICORN_HAS_BFIN
         case UC_ARCH_BFIN:
-            if ((mode & ~UC_MODE_TRICORE_MASK)) {
+            if ((mode & ~UC_MODE_BFIN_MASK)) {
                 free(uc);
                 return UC_ERR_MODE;
             }
@@ -1073,6 +1073,11 @@ uc_err uc_emu_start(uc_engine *uc, uint64_t begin, uint64_t until,
 #ifdef UNICORN_HAS_TRICORE
     case UC_ARCH_TRICORE:
         uc_reg_write(uc, UC_TRICORE_REG_PC, &begin_pc32);
+        break;
+#endif
+#ifdef UNICORN_HAS_BFIN
+    case UC_ARCH_BFIN:
+        uc_reg_write(uc, UC_BFIN_REG_PC, &begin_pc32);
         break;
 #endif
     }

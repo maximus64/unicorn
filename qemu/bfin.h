@@ -1292,4 +1292,6 @@
 #define tlb_reset_dirty_by_vaddr tlb_reset_dirty_by_vaddr_bfin
 #define helper_stqcx_le_parallel helper_stqcx_le_parallel_bfin
 #define helper_stqcx_be_parallel helper_stqcx_be_parallel_bfin
+#define gen_intermediate_code gen_intermediate_code_bfin
+#define restore_state_to_opc restore_state_to_opc_bfin
 #endif
