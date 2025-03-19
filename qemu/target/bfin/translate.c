@@ -1183,6 +1183,7 @@ static void bfin_tr_init_disas_context(DisasContextBase *dcbase,
     // unicorn setup
     dc->uc = cs->uc;
 
+    dc->pc = dc->base.pc_first;
     dc->env = env;
 
     dc->mem_idx = cpu_mmu_index(env, false);
