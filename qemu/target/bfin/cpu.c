@@ -76,6 +76,12 @@ static void bf5xx_cpu_initfn(struct uc_struct *uc, CPUState *obj)
     // All BF5xx cpus have the same ISA (ignoring BF535).  They largely differ
     // in peripherals & on-chip memory (L1/L2).  They also have diff errata that
     // can affect the cores, but we probably won't bother emulating those.
+
+    BlackfinCPU *cpu = BFIN_CPU(obj);
+    CPUArchState *env = &cpu->env;
+
+    env->uc = uc;
+    cpu_set_cpustate_pointers(cpu);
 }
 
 BlackfinCPU *cpu_bfin_init(struct uc_struct *uc)
