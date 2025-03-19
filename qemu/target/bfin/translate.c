@@ -1255,6 +1255,9 @@ static void bfin_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
 
     switch (dc->base.is_jmp) {
+        case DISAS_TOO_MANY:
+            gen_gotoi_tb(dc, 0, dc->base.pc_next);
+            break;
         case DISAS_NEXT:
             gen_gotoi_tb(dc, 1, dc->pc);
             break;

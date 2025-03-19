@@ -68,14 +68,6 @@ void HELPER(raise_exception)(CPUArchState *env, uint32_t excp, uint32_t pc)
     BlackfinCPU *cpu = bfin_env_get_cpu(env);
     CPUState *cs = CPU(cpu);
 
-#ifndef CONFIG_LINUX_USER
-    /* TODO: This doesn't seem like the right place. */
-    if (excp == EXCP_HLT) {
-        //qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
-        assert(0); 
-    }
-#endif
-
     cs->exception_index = excp;
     if (pc != -1) {
         env->pc = pc;
