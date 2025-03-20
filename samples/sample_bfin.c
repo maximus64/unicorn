@@ -1,7 +1,5 @@
-/*
-   Created for Unicorn Engine by Eric Poole <eric.poole@aptiv.com>, 2022
-   Copyright 2022 Aptiv
-*/
+/* Unicorn Emulator Engine */
+/* By Khoa Hoang, 2025 */
 
 /* Sample code to demonstrate how to emulate Blackfin code */
 
@@ -9,7 +7,8 @@
 #include <string.h>
 
 // code to be emulated
-#define CODE "\x00\xe1\x41\x41\xfe\x2f\x00\x00" // mov d1, #0x1; mov.u d0, #0x8000
+// r0.l = 0x4141; r0.h = 0x4242; r1 = 0x32
+#define CODE "\x00\xe1\x41\x41\x40\xe1\x42\x42\x91\x61\x00\x00"
 
 // memory address where emulation starts
 #define ADDRESS 0x10000

@@ -55,29 +55,9 @@ typedef struct DisasContext {
 /* We're making a call (which means we need to update RTS) */
 #define DISAS_CALL    DISAS_TARGET_3
 
-static TCGv cpu_dreg[8];
-static TCGv cpu_preg[8];
 #define cpu_spreg cpu_preg[6]
 #define cpu_fpreg cpu_preg[7]
-static TCGv cpu_ireg[4];
-static TCGv cpu_mreg[4];
-static TCGv cpu_breg[4];
-static TCGv cpu_lreg[4];
-static TCGv_i64 cpu_areg[2];
-static TCGv cpu_rets;
-static TCGv cpu_lcreg[2], cpu_ltreg[2], cpu_lbreg[2];
-static TCGv cpu_cycles[2];
-static TCGv cpu_uspreg;
-static TCGv cpu_seqstat;
-static TCGv cpu_syscfg;
-static TCGv cpu_reti;
-static TCGv cpu_retx;
-static TCGv cpu_retn;
-static TCGv cpu_rete;
-static TCGv cpu_emudat;
-static TCGv cpu_pc;
-static TCGv cpu_cc;
-static TCGv cpu_astat_arg[3];
+
 
 #include "exec/gen-icount.h"
 
@@ -94,28 +74,28 @@ bfin_tcg_new_set3(TCGContext *tcg_ctx, TCGv *tcgv, unsigned int cnt, unsigned in
     bfin_tcg_new_set3(tcg_ctx, tcgv, cnt, offsetof(CPUArchState, reg), \
                       &greg_names[name_idx])
 #define bfin_tcg_new_set(reg, name_idx) \
-    bfin_tcg_new_set2(tcg_ctx, cpu_##reg, ARRAY_SIZE(cpu_##reg), reg, name_idx)
+    bfin_tcg_new_set2(tcg_ctx, tcg_ctx->cpu_##reg, ARRAY_SIZE(tcg_ctx->cpu_##reg), reg, name_idx)
 #define bfin_tcg_new(reg, name_idx) \
-    bfin_tcg_new_set2(tcg_ctx, &cpu_##reg, 1, reg, name_idx)
+    bfin_tcg_new_set2(tcg_ctx, &(tcg_ctx->cpu_##reg), 1, reg, name_idx)
 
 void bfin_translate_init(struct uc_struct *uc)
 {
     TCGContext *tcg_ctx = uc->tcg_ctx;
-    cpu_pc = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_pc = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, pc), "PC");
-    cpu_cc = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_cc = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, astat[ASTAT_CC]), "CC");
 
-    cpu_astat_arg[0] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_astat_arg[0] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, astat_arg[0]), "astat_arg[0]");
-    cpu_astat_arg[1] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_astat_arg[1] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, astat_arg[1]), "astat_arg[1]");
-    cpu_astat_arg[2] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_astat_arg[2] = tcg_global_mem_new(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, astat_arg[2]), "astat_arg[2]");
 
-    cpu_areg[0] = tcg_global_mem_new_i64(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_areg[0] = tcg_global_mem_new_i64(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, areg[0]), "A0");
-    cpu_areg[1] = tcg_global_mem_new_i64(tcg_ctx, tcg_ctx->cpu_env,
+    tcg_ctx->cpu_areg[1] = tcg_global_mem_new_i64(tcg_ctx, tcg_ctx->cpu_env,
         offsetof(CPUArchState, areg[1]), "A1");
 
     bfin_tcg_new_set(dreg, 0);
@@ -152,7 +132,7 @@ static void gen_goto_tb(DisasContext *dc, int tb_num, TCGv dest)
 {
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
     gen_astat_update(dc, false);
-    tcg_gen_mov_tl(tcg_ctx, cpu_pc, dest);
+    tcg_gen_mov_tl(tcg_ctx, tcg_ctx->cpu_pc, dest);
     tcg_gen_exit_tb(tcg_ctx, NULL, 0);
 }
 
@@ -256,7 +236,8 @@ static void gen_aligned_qemu_st32(DisasContext *dc, TCGv val, TCGv addr)
  */
 static void gen_maybe_lb_exit_tb(DisasContext *dc, TCGv reg)
 {
-    if (reg != cpu_lbreg[0] && reg != cpu_lbreg[1]) {
+    TCGContext *tcg_ctx = dc->uc->tcg_ctx;
+    if (reg != tcg_ctx->cpu_lbreg[0] && reg != tcg_ctx->cpu_lbreg[1]) {
         return;
     }
 
@@ -269,8 +250,9 @@ static void gen_maybe_lb_exit_tb(DisasContext *dc, TCGv reg)
 
 static void gen_hwloop_default(DisasContext *dc, int loop)
 {
+    TCGContext *tcg_ctx = dc->uc->tcg_ctx;
     if (loop != -1) {
-        gen_goto_tb(dc, 0, cpu_ltreg[loop]);
+        gen_goto_tb(dc, 0, tcg_ctx->cpu_ltreg[loop]);
     }
 }
 
@@ -283,9 +265,9 @@ static void _gen_hwloop_call(DisasContext *dc, int loop)
     }
 
     if (loop == -1) {
-        tcg_gen_movi_tl(tcg_ctx, cpu_rets, dc->pc + dc->insn_len);
+        tcg_gen_movi_tl(tcg_ctx, tcg_ctx->cpu_rets, dc->pc + dc->insn_len);
     } else {
-        tcg_gen_mov_tl(tcg_ctx, cpu_rets, cpu_ltreg[loop]);
+        tcg_gen_mov_tl(tcg_ctx, tcg_ctx->cpu_rets, tcg_ctx->cpu_ltreg[loop]);
     }
 }
 
@@ -299,7 +281,7 @@ static void gen_hwloop_br_pcrel_cc(DisasContext *dc, int loop)
     pcrel &= ~1;
 
     l = gen_new_label(tcg_ctx);
-    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, cpu_cc, T, l);
+    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, tcg_ctx->cpu_cc, T, l);
     gen_gotoi_tb(dc, 0, dc->pc + pcrel);
     gen_set_label(tcg_ctx, l);
     if (loop == -1) {
@@ -315,8 +297,8 @@ static void gen_hwloop_br_pcrel(DisasContext *dc, int loop)
 
     TCGv *reg = dc->hwloop_data;
     _gen_hwloop_call(dc, loop);
-    tcg_gen_addi_tl(tcg_ctx, cpu_pc, *reg, dc->pc);
-    gen_goto_tb(dc, 0, cpu_pc);
+    tcg_gen_addi_tl(tcg_ctx, tcg_ctx->cpu_pc, *reg, dc->pc);
+    gen_goto_tb(dc, 0, tcg_ctx->cpu_pc);
 }
 
 static void gen_hwloop_br_pcrel_imm(DisasContext *dc, int loop)
@@ -328,9 +310,9 @@ static void gen_hwloop_br_pcrel_imm(DisasContext *dc, int loop)
 
     _gen_hwloop_call(dc, loop);
     tmp = tcg_const_tl(tcg_ctx, pcrel);
-    tcg_gen_addi_tl(tcg_ctx, cpu_pc, tmp, dc->pc);
+    tcg_gen_addi_tl(tcg_ctx, tcg_ctx->cpu_pc, tmp, dc->pc);
     tcg_temp_free(tcg_ctx, tmp);
-    gen_goto_tb(dc, 0, cpu_pc);
+    gen_goto_tb(dc, 0, tcg_ctx->cpu_pc);
 }
 
 static void gen_hwloop_br_direct(DisasContext *dc, int loop)
@@ -343,9 +325,9 @@ static void gen_hwloop_br_direct(DisasContext *dc, int loop)
 static void _gen_hwloop_check(DisasContext *dc, int loop, TCGLabel *l)
 {
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
-    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_EQ, cpu_lcreg[loop], 0, l);
-    tcg_gen_subi_tl(tcg_ctx, cpu_lcreg[loop], cpu_lcreg[loop], 1);
-    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_EQ, cpu_lcreg[loop], 0, l);
+    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_EQ, tcg_ctx->cpu_lcreg[loop], 0, l);
+    tcg_gen_subi_tl(tcg_ctx, tcg_ctx->cpu_lcreg[loop], tcg_ctx->cpu_lcreg[loop], 1);
+    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_EQ, tcg_ctx->cpu_lcreg[loop], 0, l);
     dc->hwloop_callback(dc, loop);
 }
 
@@ -636,11 +618,11 @@ static void gen_rot_tl(TCGContext *tcg_ctx, TCGv dst, TCGv src, TCGv orig_shift)
 
     /* Then add in and output feedback via the CC register */
     tcg_gen_subi_tl(tcg_ctx, shift, shift, 1);
-    tcg_gen_shl_tl(tcg_ctx, cpu_cc, cpu_cc, shift);
-    tcg_gen_or_tl(tcg_ctx, ret, ret, cpu_cc);
+    tcg_gen_shl_tl(tcg_ctx, tcg_ctx->cpu_cc, tcg_ctx->cpu_cc, shift);
+    tcg_gen_or_tl(tcg_ctx, ret, ret, tcg_ctx->cpu_cc);
     tcg_gen_subfi_tl(tcg_ctx, shift, nbits - 1, shift);
-    tcg_gen_shr_tl(tcg_ctx, cpu_cc, src, shift);
-    tcg_gen_andi_tl(tcg_ctx, cpu_cc, cpu_cc, 1);
+    tcg_gen_shr_tl(tcg_ctx, tcg_ctx->cpu_cc, src, shift);
+    tcg_gen_andi_tl(tcg_ctx, tcg_ctx->cpu_cc, tcg_ctx->cpu_cc, 1);
 
     if (dst == src) {
         tcg_gen_mov_tl(tcg_ctx, dst, ret);
@@ -688,10 +670,10 @@ static void gen_roti_tl(TCGContext *tcg_ctx, TCGv dst, TCGv src, int32_t shift)
     }
 
     /* Then add in and output feedback via the CC register */
-    tcg_gen_shli_tl(tcg_ctx, cpu_cc, cpu_cc, shift - 1);
-    tcg_gen_or_tl(tcg_ctx, ret, ret, cpu_cc);
-    tcg_gen_shri_tl(tcg_ctx, cpu_cc, src, nbits - shift);
-    tcg_gen_andi_tl(tcg_ctx, cpu_cc, cpu_cc, 1);
+    tcg_gen_shli_tl(tcg_ctx, tcg_ctx->cpu_cc, tcg_ctx->cpu_cc, shift - 1);
+    tcg_gen_or_tl(tcg_ctx, ret, ret, tcg_ctx->cpu_cc);
+    tcg_gen_shri_tl(tcg_ctx, tcg_ctx->cpu_cc, src, nbits - shift);
+    tcg_gen_andi_tl(tcg_ctx, tcg_ctx->cpu_cc, tcg_ctx->cpu_cc, 1);
 
     if (dst == src) {
         tcg_gen_mov_tl(tcg_ctx, dst, ret);
@@ -751,14 +733,14 @@ static void gen_rot_i64(TCGContext *tcg_ctx, TCGv_i64 dst, TCGv_i64 src, TCGv_i6
 
     /* Then add in and output feedback via the CC register */
     cc64 = tcg_temp_new_i64(tcg_ctx);
-    tcg_gen_ext_i32_i64(tcg_ctx, cc64, cpu_cc);
+    tcg_gen_ext_i32_i64(tcg_ctx, cc64, tcg_ctx->cpu_cc);
     tcg_gen_subi_i64(tcg_ctx, shift, shift, 1);
     tcg_gen_shl_i64(tcg_ctx, cc64, cc64, shift);
     tcg_gen_or_i64(tcg_ctx, ret, ret, cc64);
     tcg_gen_subfi_i64(tcg_ctx, shift, nbits - 1, shift);
     tcg_gen_shr_i64(tcg_ctx, cc64, src, shift);
     tcg_gen_andi_i64(tcg_ctx, cc64, cc64, 1);
-    tcg_gen_extrl_i64_i32(tcg_ctx, cpu_cc, cc64);
+    tcg_gen_extrl_i64_i32(tcg_ctx, tcg_ctx->cpu_cc, cc64);
     tcg_temp_free_i64(tcg_ctx, cc64);
 
     if (dst == src) {
@@ -808,12 +790,12 @@ static void gen_roti_i64(TCGContext *tcg_ctx, TCGv_i64 dst, TCGv_i64 src, int32_
 
     /* Then add in and output feedback via the CC register */
     cc64 = tcg_temp_new_i64(tcg_ctx);
-    tcg_gen_ext_i32_i64(tcg_ctx, cc64, cpu_cc);
+    tcg_gen_ext_i32_i64(tcg_ctx, cc64, tcg_ctx->cpu_cc);
     tcg_gen_shli_i64(tcg_ctx, cc64, cc64, shift - 1);
     tcg_gen_or_i64(tcg_ctx, ret, ret, cc64);
     tcg_gen_shri_i64(tcg_ctx, cc64, src, nbits - shift);
     tcg_gen_andi_i64(tcg_ctx, cc64, cc64, 1);
-    tcg_gen_extrl_i64_i32(tcg_ctx, cpu_cc, cc64);
+    tcg_gen_extrl_i64_i32(tcg_ctx, tcg_ctx->cpu_cc, cc64);
     tcg_temp_free_i64(tcg_ctx, cc64);
 
     if (dst == src) {
@@ -834,14 +816,14 @@ static void gen_dagadd(DisasContext *dc, int dagno, TCGv M)
     /* Optimize for when circ buffers are not used */
     l = gen_new_label(tcg_ctx);
     endl = gen_new_label(tcg_ctx);
-    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, cpu_lreg[dagno], 0, l);
-    tcg_gen_add_tl(tcg_ctx, cpu_ireg[dagno], cpu_ireg[dagno], M);
+    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, tcg_ctx->cpu_lreg[dagno], 0, l);
+    tcg_gen_add_tl(tcg_ctx, tcg_ctx->cpu_ireg[dagno], tcg_ctx->cpu_ireg[dagno], M);
     tcg_gen_br(tcg_ctx, endl);
     gen_set_label(tcg_ctx, l);
 
     /* Fallback to the big guns */
-    gen_helper_dagadd(tcg_ctx, cpu_ireg[dagno], cpu_ireg[dagno],
-                      cpu_lreg[dagno], cpu_breg[dagno], M);
+    gen_helper_dagadd(tcg_ctx, tcg_ctx->cpu_ireg[dagno], tcg_ctx->cpu_ireg[dagno],
+                      tcg_ctx->cpu_lreg[dagno], tcg_ctx->cpu_breg[dagno], M);
 
     gen_set_label(tcg_ctx, endl);
 }
@@ -865,14 +847,14 @@ static void gen_dagsub(DisasContext *dc, int dagno, TCGv M)
     /* Optimize for when circ buffers are not used */
     l = gen_new_label(tcg_ctx);
     endl = gen_new_label(tcg_ctx);
-    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, cpu_lreg[dagno], 0, l);
-    tcg_gen_sub_tl(tcg_ctx, cpu_ireg[dagno], cpu_ireg[dagno], M);
+    tcg_gen_brcondi_tl(tcg_ctx, TCG_COND_NE, tcg_ctx->cpu_lreg[dagno], 0, l);
+    tcg_gen_sub_tl(tcg_ctx, tcg_ctx->cpu_ireg[dagno], tcg_ctx->cpu_ireg[dagno], M);
     tcg_gen_br(tcg_ctx, endl);
     gen_set_label(tcg_ctx, l);
 
     /* Fallback to the big guns */
-    gen_helper_dagsub(tcg_ctx, cpu_ireg[dagno], cpu_ireg[dagno],
-                      cpu_lreg[dagno], cpu_breg[dagno], M);
+    gen_helper_dagsub(tcg_ctx, tcg_ctx->cpu_ireg[dagno], tcg_ctx->cpu_ireg[dagno],
+                      tcg_ctx->cpu_lreg[dagno], tcg_ctx->cpu_breg[dagno], M);
 
     gen_set_label(tcg_ctx, endl);
 }
@@ -943,22 +925,22 @@ static void gen_astat_update(DisasContext *dc, bool clear)
     case ASTAT_OP_ABS:    /* [0] = ABS( [1] ) */
         len = 32;
         /* XXX: Missing V/VS updates */
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, len);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, len);
         break;
 
     case ASTAT_OP_ABS_VECTOR: /* [0][1] = ABS( [2] ) (V) */
         /* XXX: Missing V/VS updates */
-        _gen_astat_update_nz2(tcg_ctx, cpu_astat_arg[0], cpu_astat_arg[1], tmp, len);
+        _gen_astat_update_nz2(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[1], tmp, len);
         break;
 
     case ASTAT_OP_ADD32:    /* [0] = [1] + [2] */
         /* XXX: Missing V/VS updates */
         len = 32;
-        tcg_gen_not_tl(tcg_ctx, tmp, cpu_astat_arg[1]);
-        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LTU, tmp, tmp, cpu_astat_arg[2]);
+        tcg_gen_not_tl(tcg_ctx, tmp, tcg_ctx->cpu_astat_arg[1]);
+        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LTU, tmp, tmp, tcg_ctx->cpu_astat_arg[2]);
         _gen_astat_store(tcg_ctx, ASTAT_AC0, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_AC0_COPY, tmp);
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, 32);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, 32);
         break;
 
     case ASTAT_OP_ASHIFT32:
@@ -968,24 +950,24 @@ static void gen_astat_update(DisasContext *dc, bool clear)
         /* Need to update AC0 ? */
         _gen_astat_store(tcg_ctx, ASTAT_V, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_V_COPY, tmp);
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, len);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, len);
         break;
 
     case ASTAT_OP_COMPARE_SIGNED: {
         TCGv flgs, flgo, overflow, flgn, res = tcg_temp_new(tcg_ctx);
-        tcg_gen_sub_tl(tcg_ctx, res, cpu_astat_arg[0], cpu_astat_arg[1]);
+        tcg_gen_sub_tl(tcg_ctx, res, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[1]);
         _gen_astat_update_az(tcg_ctx, res, tmp);
-        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, cpu_astat_arg[1],
-                           cpu_astat_arg[0]);
+        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, tcg_ctx->cpu_astat_arg[1],
+                           tcg_ctx->cpu_astat_arg[0]);
         _gen_astat_store(tcg_ctx, ASTAT_AC0, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_AC0_COPY, tmp);
         /* XXX: This has got to be simpler ... */
         /* int flgs = srcop >> 31; */
         flgs = tcg_temp_new(tcg_ctx);
-        tcg_gen_shri_tl(tcg_ctx, flgs, cpu_astat_arg[0], 31);
+        tcg_gen_shri_tl(tcg_ctx, flgs, tcg_ctx->cpu_astat_arg[0], 31);
         /* int flgo = dstop >> 31; */
         flgo = tcg_temp_new(tcg_ctx);
-        tcg_gen_shri_tl(tcg_ctx, flgo, cpu_astat_arg[1], 31);
+        tcg_gen_shri_tl(tcg_ctx, flgo, tcg_ctx->cpu_astat_arg[1], 31);
         /* int flgn = result >> 31; */
         flgn = tcg_temp_new(tcg_ctx);
         tcg_gen_shri_tl(tcg_ctx, flgn, res, 31);
@@ -1010,14 +992,14 @@ static void gen_astat_update(DisasContext *dc, bool clear)
     }
 
     case ASTAT_OP_COMPARE_UNSIGNED:
-        tcg_gen_sub_tl(tcg_ctx, tmp, cpu_astat_arg[0], cpu_astat_arg[1]);
+        tcg_gen_sub_tl(tcg_ctx, tmp, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[1]);
         _gen_astat_update_az(tcg_ctx, tmp, tmp);
-        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, cpu_astat_arg[1],
-                           cpu_astat_arg[0]);
+        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, tcg_ctx->cpu_astat_arg[1],
+                           tcg_ctx->cpu_astat_arg[0]);
         _gen_astat_store(tcg_ctx, ASTAT_AC0, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_AC0_COPY, tmp);
-        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_GTU, tmp, cpu_astat_arg[1],
-                           cpu_astat_arg[0]);
+        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_GTU, tmp, tcg_ctx->cpu_astat_arg[1],
+                           tcg_ctx->cpu_astat_arg[0]);
         _gen_astat_store(tcg_ctx, ASTAT_AN, tmp);
         break;
 
@@ -1029,15 +1011,15 @@ static void gen_astat_update(DisasContext *dc, bool clear)
         _gen_astat_store(tcg_ctx, ASTAT_AC0_COPY, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_V, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_V_COPY, tmp);
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, len);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, len);
         break;
 
     case ASTAT_OP_LSHIFT32:
         len *= 2;
     case ASTAT_OP_LSHIFT16:
-        _gen_astat_update_az(tcg_ctx, cpu_astat_arg[0], tmp);
+        _gen_astat_update_az(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp);
         /* XXX: should be checking bit shifted */
-        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_GEU, tmp, cpu_astat_arg[0],
+        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_GEU, tmp, tcg_ctx->cpu_astat_arg[0],
                             1 << (len - 1));
         _gen_astat_store(tcg_ctx, ASTAT_AN, tmp);
         /* XXX: No saturation handling ... */
@@ -1049,9 +1031,9 @@ static void gen_astat_update(DisasContext *dc, bool clear)
     case ASTAT_OP_LSHIFT_RT32:
         len *= 2;
     case ASTAT_OP_LSHIFT_RT16:
-        _gen_astat_update_az(tcg_ctx, cpu_astat_arg[0], tmp);
+        _gen_astat_update_az(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp);
         /* XXX: should be checking bit shifted */
-        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_GEU, tmp, cpu_astat_arg[0],
+        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_GEU, tmp, tcg_ctx->cpu_astat_arg[0],
                             1 << (len - 1));
         _gen_astat_store(tcg_ctx, ASTAT_AN, tmp);
         tcg_gen_movi_tl(tcg_ctx, tmp, 0);
@@ -1063,42 +1045,42 @@ static void gen_astat_update(DisasContext *dc, bool clear)
         tcg_gen_movi_tl(tcg_ctx, tmp, 0);
         _gen_astat_store(tcg_ctx, ASTAT_V, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_V_COPY, tmp);
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, 32);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, 32);
         break;
 
     case ASTAT_OP_MIN_MAX_VECTOR: /* [0][1] = MAX/MIN( [2], [3] ) (V) */
         tcg_gen_movi_tl(tcg_ctx, tmp, 0);
         _gen_astat_store(tcg_ctx, ASTAT_V, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_V_COPY, tmp);
-        tcg_gen_sari_tl(tcg_ctx, cpu_astat_arg[0], cpu_astat_arg[0], 16);
-        _gen_astat_update_nz2(tcg_ctx, cpu_astat_arg[0], cpu_astat_arg[1], tmp, 16);
+        tcg_gen_sari_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[0], 16);
+        _gen_astat_update_nz2(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[1], tmp, 16);
         break;
 
     case ASTAT_OP_NEGATE:    /* [0] = -[1] */
         len = 32;
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, 32);
-        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_EQ, tmp, cpu_astat_arg[0], 1 << (len - 1));
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, 32);
+        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_EQ, tmp, tcg_ctx->cpu_astat_arg[0], 1 << (len - 1));
         _gen_astat_store(tcg_ctx, ASTAT_V, tmp);
         /* XXX: Should "VS |= V;" */
-        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_EQ, tmp, cpu_astat_arg[0], 0);
+        tcg_gen_setcondi_tl(tcg_ctx, TCG_COND_EQ, tmp, tcg_ctx->cpu_astat_arg[0], 0);
         _gen_astat_store(tcg_ctx, ASTAT_AC0, tmp);
         break;
 
     case ASTAT_OP_SUB32:    /* [0] = [1] - [2] */
         len = 32;
         /* XXX: Missing V/VS updates */
-        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, cpu_astat_arg[2],
-                           cpu_astat_arg[1]);
+        tcg_gen_setcond_tl(tcg_ctx, TCG_COND_LEU, tmp, tcg_ctx->cpu_astat_arg[2],
+                           tcg_ctx->cpu_astat_arg[1]);
         _gen_astat_store(tcg_ctx, ASTAT_AC0, tmp);
         _gen_astat_store(tcg_ctx, ASTAT_AC0_COPY, tmp);
-        _gen_astat_update_nz(tcg_ctx, cpu_astat_arg[0], tmp, len);
+        _gen_astat_update_nz(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tmp, len);
         break;
 
     case ASTAT_OP_VECTOR_ADD_ADD:    /* [0][1] = [2] +|+ [3] */
     case ASTAT_OP_VECTOR_ADD_SUB:    /* [0][1] = [2] +|- [3] */
     case ASTAT_OP_VECTOR_SUB_SUB:    /* [0][1] = [2] -|- [3] */
     case ASTAT_OP_VECTOR_SUB_ADD:    /* [0][1] = [2] -|+ [3] */
-        _gen_astat_update_az2(tcg_ctx, cpu_astat_arg[0], cpu_astat_arg[1], tmp);
+        _gen_astat_update_az2(tcg_ctx, tcg_ctx->cpu_astat_arg[0], tcg_ctx->cpu_astat_arg[1], tmp);
         /* Need AN, AC0/AC1, V */
         break;
 
@@ -1124,16 +1106,16 @@ _astat_queue_state(DisasContext *dc, enum astat_ops op, unsigned int num,
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
     dc->astat_op = op;
 
-    tcg_gen_mov_tl(tcg_ctx, cpu_astat_arg[0], arg0);
+    tcg_gen_mov_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[0], arg0);
     if (num > 1) {
-        tcg_gen_mov_tl(tcg_ctx, cpu_astat_arg[1], arg1);
+        tcg_gen_mov_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[1], arg1);
     } else {
-        tcg_gen_discard_tl(tcg_ctx, cpu_astat_arg[1]);
+        tcg_gen_discard_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[1]);
     }
     if (num > 2) {
-        tcg_gen_mov_tl(tcg_ctx, cpu_astat_arg[2], arg2);
+        tcg_gen_mov_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[2], arg2);
     } else {
-        tcg_gen_discard_tl(tcg_ctx, cpu_astat_arg[2]);
+        tcg_gen_discard_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[2]);
     }
 }
 #define astat_queue_state1(dc, op, arg0) \
@@ -1159,8 +1141,8 @@ static void gen_astat_store(DisasContext *dc, TCGv reg)
 
     dc->astat_op = ASTAT_OP_NONE;
 
-    for (i = 0; i < ARRAY_SIZE(cpu_astat_arg); ++i) {
-        tcg_gen_discard_tl(tcg_ctx, cpu_astat_arg[i]);
+    for (i = 0; i < ARRAY_SIZE(tcg_ctx->cpu_astat_arg); ++i) {
+        tcg_gen_discard_tl(tcg_ctx, tcg_ctx->cpu_astat_arg[i]);
     }
 }
 
@@ -1170,7 +1152,7 @@ static inline void gen_save_pc(DisasContext *ctx, target_ulong pc)
 {
     TCGContext *tcg_ctx = ctx->uc->tcg_ctx;
 
-    tcg_gen_movi_tl(tcg_ctx, tcg_ctx->cpu_PC, pc);
+    tcg_gen_movi_tl(tcg_ctx, tcg_ctx->cpu_pc, pc);
 }
 
 
@@ -1216,8 +1198,8 @@ static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
     DisasContext *dc = container_of(dcbase, DisasContext, base);
     struct uc_struct *uc = dc->uc;
     TCGContext *tcg_ctx = uc->tcg_ctx;
-    CPUArchState *env = cs->env_ptr;
-    unsigned int insn;
+    bool hook_insn = false;
+    TCGOp *tcg_op, *prev_op = NULL;
 
     // Unicorn: end address tells us to stop emulation
     if (uc_addr_is_exit(uc, dc->pc)) {
@@ -1230,6 +1212,9 @@ static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
         // Sync PC in advance
         gen_save_pc(dc, dc->base.pc_next);
 
+        // save the last operand
+        prev_op = tcg_last_op(tcg_ctx);
+        hook_insn = true;
         gen_uc_tracecode(tcg_ctx, dc->insn_len, UC_HOOK_CODE_IDX, dc->uc,
                          dc->base.pc_next);
         // the callback might want to stop emulation immediately
@@ -1238,8 +1223,25 @@ static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 
     interp_insn_bfin(dc);
     gen_hwloop_check(dc);
-    dc->base.pc_next += dc->insn_len;
 
+    if (hook_insn) {
+        // Unicorn: patch the callback to have the proper instruction size.
+        if (prev_op) {
+            // As explained further up in the function where prev_op is
+            // assigned, we move forward in the tail queue, so we're modifying the
+            // move instruction generated by gen_uc_tracecode() that contains
+            // the instruction size to assign the proper size (replacing 0xF1F1F1F1).
+            tcg_op = QTAILQ_NEXT(prev_op, link);
+        } else {
+            // this instruction is the first emulated code ever,
+            // so the instruction operand is the first operand
+            tcg_op = QTAILQ_FIRST(&tcg_ctx->ops);
+        }
+
+        tcg_op->args[1] = dc->insn_len;
+    }
+
+    dc->base.pc_next += dc->insn_len;
 
     if (dc->base.is_jmp == DISAS_NORETURN) {
         return;
