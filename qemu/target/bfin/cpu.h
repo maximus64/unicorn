@@ -138,14 +138,13 @@ typedef struct BlackfinCPUClass {
  *
  * A Blackfin CPU.
  */
-typedef struct ArchCPU {
+typedef struct BlackfinCPU {
     /*< private >*/
     CPUState parent_obj;
     /*< public >*/
 
-    CPUBfinState env;
-
     CPUNegativeOffsetState neg;
+    CPUBfinState env;
 
     struct BlackfinCPUClass cc;
 } BlackfinCPU;
