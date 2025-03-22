@@ -8,7 +8,7 @@
 
 // code to be emulated
 // r0.l = 0x4141; r0.h = 0x4242; r1 = 0x32
-#define CODE "\x00\xe1\x41\x41\x40\xe1\x42\x42\x91\x61\x00\x00"
+#define CODE "\x00\xe1\x41\x41\x40\xe1\x42\x42\x91\x61"
 
 // memory address where emulation starts
 #define ADDRESS 0x10000
