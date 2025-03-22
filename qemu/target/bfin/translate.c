@@ -1201,9 +1201,12 @@ static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
     bool hook_insn = false;
     TCGOp *tcg_op, *prev_op = NULL;
 
+    dc->pc = dc->base.pc_next;
+
     // Unicorn: end address tells us to stop emulation
-    if (uc_addr_is_exit(uc, dc->pc)) {
+    if (uc_addr_is_exit(uc, dc->base.pc_next)) {
         cec_exception(dc, EXCP_HLT);
+        dc->base.is_jmp = DISAS_NORETURN;
         return;
     }
 
@@ -1243,12 +1246,6 @@ static void bfin_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 
     dc->base.pc_next += dc->insn_len;
 
-    if (dc->base.is_jmp == DISAS_NORETURN) {
-        return;
-    }
-    if (dc->pc != dc->base.pc_next) {
-        dc->base.is_jmp = DISAS_TOO_MANY;
-    }
 }
 
 static void bfin_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
@@ -1257,13 +1254,10 @@ static void bfin_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
     TCGContext *tcg_ctx = dc->uc->tcg_ctx;
 
     switch (dc->base.is_jmp) {
-        case DISAS_TOO_MANY:
-            gen_gotoi_tb(dc, 0, dc->base.pc_next);
-            break;
         case DISAS_NEXT:
-            gen_gotoi_tb(dc, 1, dc->pc);
+        case DISAS_TOO_MANY:
+            gen_gotoi_tb(dc, 1, dc->base.pc_next);
             break;
-        default:
         case DISAS_UPDATE:
             /* indicate that the hash table must be used
                to find the next TB */
@@ -1272,8 +1266,11 @@ static void bfin_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
         case DISAS_CALL:
         case DISAS_JUMP:
         case DISAS_TB_JUMP:
+        case DISAS_NORETURN:
             /* nothing more to generate */
             break;
+        default:
+            g_assert_not_reached();
     }
 }
 
