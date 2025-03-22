@@ -6289,6 +6289,24 @@ helper_uc_tricore_exit \
 bfin_SYMBOLS="
 gen_intermediate_code \
 restore_state_to_opc \
+helper_raise_exception \
+helper_memalign \
+helper_require_supervisor \
+helper_dbga_l \
+helper_dbga_h \
+helper_outc \
+helper_dbg \
+helper_dbg_areg \
+helper_astat_load \
+helper_astat_store \
+helper_cycles_read \
+helper_ones \
+helper_signbits_16 \
+helper_signbits_32 \
+helper_signbits_40 \
+helper_dagadd \
+helper_dagsub \
+helper_add_brev \
 "
 
 ARCHS="x86_64 arm aarch64 bfin riscv32 riscv64 mips mipsel mips64 mips64el sparc sparc64 m68k ppc ppc64 s390x tricore"

@@ -1294,4 +1294,22 @@
 #define helper_stqcx_be_parallel helper_stqcx_be_parallel_bfin
 #define gen_intermediate_code gen_intermediate_code_bfin
 #define restore_state_to_opc restore_state_to_opc_bfin
+#define helper_raise_exception helper_raise_exception_bfin
+#define helper_memalign helper_memalign_bfin
+#define helper_require_supervisor helper_require_supervisor_bfin
+#define helper_dbga_l helper_dbga_l_bfin
+#define helper_dbga_h helper_dbga_h_bfin
+#define helper_outc helper_outc_bfin
+#define helper_dbg helper_dbg_bfin
+#define helper_dbg_areg helper_dbg_areg_bfin
+#define helper_astat_load helper_astat_load_bfin
+#define helper_astat_store helper_astat_store_bfin
+#define helper_cycles_read helper_cycles_read_bfin
+#define helper_ones helper_ones_bfin
+#define helper_signbits_16 helper_signbits_16_bfin
+#define helper_signbits_32 helper_signbits_32_bfin
+#define helper_signbits_40 helper_signbits_40_bfin
+#define helper_dagadd helper_dagadd_bfin
+#define helper_dagsub helper_dagsub_bfin
+#define helper_add_brev helper_add_brev_bfin
 #endif

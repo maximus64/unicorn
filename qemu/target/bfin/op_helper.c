@@ -63,7 +63,7 @@
  }
  
 
-void HELPER(raise_exception)(CPUArchState *env, uint32_t excp, uint32_t pc)
+void helper_raise_exception(CPUArchState *env, uint32_t excp, uint32_t pc)
 {
     BlackfinCPU *cpu = bfin_env_get_cpu(env);
     CPUState *cs = CPU(cpu);
@@ -75,7 +75,7 @@ void HELPER(raise_exception)(CPUArchState *env, uint32_t excp, uint32_t pc)
     cpu_loop_exit(cs);
 }
 
-void HELPER(memalign)(CPUArchState *env, uint32_t excp, uint32_t pc,
+void helper_memalign(CPUArchState *env, uint32_t excp, uint32_t pc,
                       uint32_t addr, uint32_t len)
 {
     if ((addr & (len - 1)) == 0) {
@@ -85,13 +85,13 @@ void HELPER(memalign)(CPUArchState *env, uint32_t excp, uint32_t pc,
     HELPER(raise_exception)(env, excp, pc);
 }
 
-void HELPER(require_supervisor)(CPUArchState *env, uint32_t pc)
+void helper_require_supervisor(CPUArchState *env, uint32_t pc)
 {
     if (!cec_is_supervisor_mode(env))
         HELPER(raise_exception)(env, EXCP_ILL_SUPV, pc);
 }
 
-void HELPER(dbga_l)(CPUArchState *env, uint32_t pc, uint32_t actual,
+void helper_dbga_l(CPUArchState *env, uint32_t pc, uint32_t actual,
                     uint32_t expected)
 {
     if ((actual & 0xffff) != expected) {
@@ -99,7 +99,7 @@ void HELPER(dbga_l)(CPUArchState *env, uint32_t pc, uint32_t actual,
     }
 }
 
-void HELPER(dbga_h)(CPUArchState *env, uint32_t pc, uint32_t actual,
+void helper_dbga_h(CPUArchState *env, uint32_t pc, uint32_t actual,
                     uint32_t expected)
 {
     if ((actual >> 16) != expected) {
@@ -107,7 +107,7 @@ void HELPER(dbga_h)(CPUArchState *env, uint32_t pc, uint32_t actual,
     }
 }
 
-void HELPER(outc)(uint32_t ch)
+void helper_outc(uint32_t ch)
 {
     putc(ch, stdout);
     if (ch == '\n') {
@@ -115,29 +115,29 @@ void HELPER(outc)(uint32_t ch)
     }
 }
 
-void HELPER(dbg)(uint32_t val, uint32_t grp, uint32_t reg)
+void helper_dbg(uint32_t val, uint32_t grp, uint32_t reg)
 {
     printf("DBG : %s = 0x%08x\n", get_allreg_name(grp, reg), val);
 }
 
-void HELPER(dbg_areg)(uint64_t val, uint32_t areg)
+void helper_dbg_areg(uint64_t val, uint32_t areg)
 {
     printf("DBG : A%u = 0x%010"PRIx64"\n", areg, (val << 24) >> 24);
 }
 
-uint32_t HELPER(astat_load)(CPUArchState *env)
+uint32_t helper_astat_load(CPUArchState *env)
 {
     return bfin_astat_read(env);
 }
 
-void HELPER(astat_store)(CPUArchState *env, uint32_t astat)
+void helper_astat_store(CPUArchState *env, uint32_t astat)
 {
     bfin_astat_write(env, astat);
 }
 
 /* XXX: This isn't entirely accurate.  A write to CYCLES should reset it to 0.
    So this code really should be returning CYCLES + clock offset.  */
-uint32_t HELPER(cycles_read)(CPUArchState *env)
+uint32_t helper_cycles_read(CPUArchState *env)
 {
     uint64_t cycles;
 
@@ -153,20 +153,20 @@ uint32_t HELPER(cycles_read)(CPUArchState *env)
 }
 
 /* Count the number of bits set to 1 in the 32bit value.  */
-uint32_t HELPER(ones)(uint32_t val)
+uint32_t helper_ones(uint32_t val)
 {
     return ctpopl(val);
 }
 
 /* Count number of leading bits that match the sign bit.  */
-uint32_t HELPER(signbits_16)(uint32_t val)
+uint32_t helper_signbits_16(uint32_t val)
 {
     uint32_t bit = val & (1 << 15);
     return (bit ? clo16(val) : clz16(val)) - 1;
 }
 
 /* Count number of leading bits that match the sign bit.  */
-uint32_t HELPER(signbits_32)(uint32_t val)
+uint32_t helper_signbits_32(uint32_t val)
 {
     uint32_t bit = val & (1 << 31);
     return (bit ? clo32(val) : clz32(val)) - 1;
@@ -174,7 +174,7 @@ uint32_t HELPER(signbits_32)(uint32_t val)
 
 /* Count number of leading bits that match the sign bit.
    This ignores the top 24 bits entirely, so it should always be safe.  */
-uint32_t HELPER(signbits_40)(uint64_t val)
+uint32_t helper_signbits_40(uint64_t val)
 {
     uint64_t bit = val & (1ULL << 39);
     uint32_t cnt = 0;
@@ -215,7 +215,7 @@ uint32_t HELPER(signbits_40)(uint64_t val)
    rather than worry about the circular buffers being used correctly.  Which
    isn't to say there isn't room for improvement here, just that we want to
    be conservative.  See also dagsub().  */
-uint32_t HELPER(dagadd)(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
+uint32_t helper_dagadd(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
 {
     uint64_t i = I;
     uint64_t l = L;
@@ -256,7 +256,7 @@ uint32_t HELPER(dagadd)(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
 }
 
 /* See dagadd() notes above.  */
-uint32_t HELPER(dagsub)(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
+uint32_t helper_dagsub(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
 {
     uint64_t i = I;
     uint64_t l = L;
@@ -298,7 +298,7 @@ uint32_t HELPER(dagsub)(uint32_t I, uint32_t L, uint32_t B, uint32_t M)
     return res;
 }
 
-uint32_t HELPER(add_brev)(uint32_t addend1, uint32_t addend2)
+uint32_t helper_add_brev(uint32_t addend1, uint32_t addend2)
 {
     uint32_t mask, b, r;
     int i, cy;
